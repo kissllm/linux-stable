@@ -1,0 +1,3 @@
+#!/usr/bin/env sh
+git archive --format tar --output ./linux-stable.tar master
+xz -fz -T 0 ./linux-stable.tar

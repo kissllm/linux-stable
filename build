@@ -5,7 +5,9 @@ export LLVM_IAS=1
 export CC=clang
 export HOSTCC=clang
 
-VERSION="$(make kernelversion)"
+# VERSION="$(make kernelversion)"
+make kernelrelease > version
+read ver < version
 
 make LLVM=1 LLVM_IAS=1 -j13
 make CC=clang HOSTCC=clang -no-intergrated-as LLVM=1 LLVM_IAS=1 modules
@@ -16,7 +18,7 @@ doas make LLVM=1 LLVM_IAS=1 install
 doas cp -f /boot/vmlinuz /boot/efi/EFI/efistub/vmlinuz.efi
 # doas sh /mnt/b "kiss on nvme1" "/dev/nvme1n1" "p3" "p2"
 
-doas cp .config /boot/config-${VERSION}
-doas mv /boot/vmlinuz /boot/vmlinuz-${VERSION}
-doas mv /boot/System.map /boot/System.map-${VERSION}
+doas cp .config /boot/config-${ver}
+doas mv /boot/vmlinuz /boot/vmlinuz-${ver}
+doas mv /boot/System.map /boot/System.map-${ver}
 doas grub-mkconfig -o /boot/grub/grub.cfg

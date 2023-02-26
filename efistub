@@ -1,0 +1,2 @@
+doas cp -f /boot/vmlinuz-$(make kernelversion) /boot/efi/EFI/efistub/vmlinuz.efi
+doas sh /mnt/b "kiss on nvme1" "/dev/nvme1n1" "p3" "p2"

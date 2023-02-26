@@ -1,0 +1,12 @@
+#!/bin/sh
+
+[ -n "${REPO_ROOT:+x}" ] || REPO_ROOT="/var/db/kiss"
+[ -n "${REPO_MAIN:+x}" ] || REPO_MAIN="$REPO_ROOT/lm"
+# [ -d "${REPO_MAIN}" ] || doas mkdir -p "${REPO_MAIN}"
+KERNEL_CONFIG="${REPO_MAIN}/system/linux/files"
+[ -d "${KERNEL_CONFIG}" ] || doas mkdir -p "${KERNEL_CONFIG}"
+doas cp -f ./.config "${KERNEL_CONFIG}/config"
+[ -d "/root/config" ] || doas mkdir -p /root/config
+# doas cp -f ./.config $(doas mktemp /root/config/config-$(make kernelversion)-XXXXXXXX)
+doas cp -f ./.config /root/config/config-$(make kernelversion)-$(date +%F-%H-%M-%S)
+doas sync

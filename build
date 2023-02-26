@@ -1,0 +1,79 @@
+#!/usr/bin/env sh
+
+export LLVM=1
+export LLVM_IAS=1
+export CC=clang
+export HOSTCC=clang
+
+git checkout HEAD -- scripts/Makefile.host
+git checkout HEAD -- scripts/genksyms/Makefile
+git checkout HEAD -- scripts/genksyms/lex.l
+git checkout HEAD -- scripts/kconfig/parser.y
+
+# export CFLAGS="$CFLAGS -mllvm -asan-stack=0 -fsanitize=kernel-address"
+# export CFLAGS="$CFLAGS -Wframe-larger-than=8192"
+patch -p1 < make-yacc-usage-POSIX-compliant.diff
+
+# VERSION="$(make kernelversion)"
+make kernelrelease > version
+read ver < version
+stamp=$ver-$(date +%F-%H-%M-%S)
+
+cp .config oldconfig
+make olddefconfig
+# make oldconfig && make prepare
+make prepare
+
+make clean
+
+# Determine arch
+case $KISS_XHOST_ARCH in
+    aarch64)     arch=arm64;;
+    aarch64_be)  arch=arm64;;
+    armv7)       arch=arm;;
+    x86_64)      arch=x86_64;;
+    powerpc64le) arch=powerpc;;
+    powerpc64)   arch=powerpc;;
+    powerpcle)   arch=powerpc;;
+    powerpc)     arch=powerpc;;
+    riscv64)     arch=riscv;;
+    riscv32)     arch=riscv;;
+    i686)        arch=i386;;
+   *) echo "Unsupported platform: $KISS_XHOST_ARCH"; exit;;
+esac
+
+# Always use the host compiler here
+make LLVM=1 LLVM_IAS=1 ARCH=$arch CROSS_COMPILE=$KISS_XHOST_ARCH HOSTCC="clang" headers
+
+# https://www.kernel.org/doc/Documentation/kbuild/headers_install.txt
+doas make headers_install ARCH=x86_64 CROSS_COMPILE=$KISS_XHOST_ARCH INSTALL_HDR_PATH=/usr
+doas \chown -R $USER:users .
+
+# pkg_dir="${HOME}/.cache/kiss/proc/linux/pkg"
+# # The headers require rsync for installation, this command
+# # simply does the equivalent using find, mkdir and cp.
+# find usr/include -name \*.h -type f | while read -r file; do
+#     doas mkdir -p "$pkg_dir/${file%/*}"
+#     doas cp -f "$file" "$pkg_dir/$file"
+# done
+
+make LLVM=1 LLVM_IAS=1 -j13 > build.log 2>&1
+
+[ -f "arch/x86/boot/bzImage" ] && {
+
+    make CC=clang HOSTCC=clang -no-intergrated-as LLVM=1 LLVM_IAS=1 INSTALL_MOD_PATH=/ ARCH=x86_64 modules
+
+    doas make LLVM=1 LLVM_IAS=1 modules_install
+    doas make ARCH=$arch CROSS_COMPILE=$KISS_XHOST_ARCH CC=clang HOSTCC=clang LLVM=1 LLVM_IAS=1 install
+
+    [ ! -d "/boot/efi/EFI/efistub" ] && doas mkdir -p "/boot/efi/EFI/efistub"
+    doas cp -f /boot/vmlinuz /boot/efi/EFI/efistub/vmlinuz.efi
+    # doas sh /mnt/b "kiss on nvme1" "/dev/nvme1n1" "p3" "p2"
+
+    doas cp .config /boot/config-${stamp}
+    doas mv /boot/vmlinuz /boot/vmlinuz-${stamp}
+    doas mv /boot/System.map /boot/System.map-${stamp}
+    doas grub-mkconfig -o /boot/grub/grub.cfg
+
+    ./backup
+}
